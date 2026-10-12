@@ -1,0 +1,230 @@
+// Data Kosa Kata Berdasarkan Buku Teks M.S. 138-142
+const kosaKataData = [
+    { word: "tabung", meaning: "Tempat menyimpan wang", icon: "🐷" },
+    { word: "wang saku", meaning: "Wang yang dibawa untuk digunakan apabila diperlukan", icon: "👛" },
+    { word: "bil", meaning: "Penyata bertulis tentang caj bagi barang yang telah diterima", icon: "🧾" },
+    { word: "hemah", meaning: "Budi pekerti", icon: "💖" },
+    { word: "mendermakan", meaning: "Memberikan sesuatu dengan ikhlas", icon: "🤲" },
+    { word: "urusan", meaning: "Hal yang perlu diberi perhatian atau diuruskan", icon: "📋" },
+    { word: "layanan", meaning: "Kata-kata atau perbuatan untuk melayan", icon: "🤝" },
+    { word: "menyimpan", meaning: "Menabung", icon: "🏦" }
+];
+
+// Data Gambar M.S. 73
+const gambarQuizData = [
+    { 
+        num: 1, 
+        icon: "🐱", 
+        clue: "Tabung berbentuk kucing tempat menyimpan wang (Rujuk Gambar 1)", 
+        answer: "tabung",
+        options: ["tabung", "wang saku", "bil", "hemah"]
+    },
+    { 
+        num: 2, 
+        icon: "🧾", 
+        clue: "Penyata bertulis caj barang di pasar raya / supermarket (Rujuk Gambar 2)", 
+        answer: "bil",
+        options: ["urusan", "bil", "mendermakan", "menyimpan"]
+    },
+    { 
+        num: 3, 
+        icon: "🐰", 
+        clue: "Seorang budak lelaki memasukkan wang ke dalam tabung arnab (Rujuk Gambar 3)", 
+        answer: "menyimpan",
+        options: ["layanan", "hemah", "menyimpan", "wang saku"]
+    },
+    { 
+        num: 4, 
+        icon: "💳", 
+        clue: "Ibu memberikan wang saku kepada anak perempuan sebelum ke sekolah (Rujuk Gambar 4)", 
+        answer: "wang saku",
+        options: ["bil", "wang saku", "mendermakan", "urusan"]
+    }
+];
+
+let totalScore = 0;
+let currentMatchIndex = 0;
+let currentImageIndex = 0;
+let shuffledMatchList = [];
+
+// Fungsi Audio Menggunakan Web Audio API
+function playSound(type) {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'correct') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5
+            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15); // A5
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } else if (type === 'wrong') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+        }
+    } catch (e) {
+        // Abaikan jika disekat pelayar
+    }
+}
+
+// Tukar Paparan Skrin
+function switchScreen(screenId) {
+    document.querySelectorAll('main > div').forEach(el => el.classList.add('hidden'));
+    document.getElementById(screenId).classList.remove('hidden');
+
+    if (screenId === 'screen-koleksi') {
+        renderKoleksiKosaKata();
+    } else if (screenId === 'screen-padanan') {
+        initMatchGame();
+    } else if (screenId === 'screen-gambar') {
+        initImageGame();
+    }
+}
+
+// Render Kamus Kosa Kata
+function renderKoleksiKosaKata() {
+    const container = document.getElementById('vocabulary-list');
+    container.innerHTML = '';
+    kosaKataData.forEach(item => {
+        container.innerHTML += `
+            <div class="bg-indigo-50/60 border border-indigo-100 rounded-2xl p-4 flex items-center space-x-4 shadow-sm hover:shadow-md transition">
+                <div class="text-4xl bg-white p-3 rounded-xl shadow-inner">${item.icon}</div>
+                <div>
+                    <h4 class="font-extrabold text-indigo-700 text-base capitalize">${item.word}</h4>
+                    <p class="text-xs text-gray-600 font-medium mt-0.5">${item.meaning}</p>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// Mulakan Permainan Padanan Maksud
+function initMatchGame() {
+    currentMatchIndex = 0;
+    shuffledMatchList = [...kosaKataData].sort(() => Math.random() - 0.5);
+    loadMatchQuestion();
+}
+
+function loadMatchQuestion() {
+    if (currentMatchIndex >= shuffledMatchList.length) {
+        showResultScreen();
+        return;
+    }
+
+    document.getElementById('match-progress').innerText = `Soalan ${currentMatchIndex + 1}/${shuffledMatchList.length}`;
+    const currentItem = shuffledMatchList[currentMatchIndex];
+    document.getElementById('current-definition').innerText = `"${currentItem.meaning}"`;
+
+    let options = [currentItem.word];
+    while (options.length < 4) {
+        let randomWord = kosaKataData[Math.floor(Math.random() * kosaKataData.length)].word;
+        if (!options.includes(randomWord)) {
+            options.push(randomWord);
+        }
+    }
+    options.sort(() => Math.random() - 0.5);
+
+    const optionsContainer = document.getElementById('match-options');
+    optionsContainer.innerHTML = '';
+    options.forEach(opt => {
+        optionsContainer.innerHTML += `
+            <button onclick="checkMatchAnswer('${opt}', '${currentItem.word}')" class="bg-white border-2 border-indigo-100 hover:border-indigo-500 hover:bg-indigo-50 text-gray-800 font-bold p-4 rounded-xl shadow-sm transition duration-150 text-center capitalize cursor-pointer">
+                ${opt}
+            </button>
+        `;
+    });
+}
+
+function checkMatchAnswer(selected, correct) {
+    if (selected === correct) {
+        playSound('correct');
+        totalScore += 10;
+        updateScoreDisplay();
+        currentMatchIndex++;
+        loadMatchQuestion();
+    } else {
+        playSound('wrong');
+        alert(`Kurang tepat! Cuba lagi.`);
+    }
+}
+
+// Mulakan Permainan Teka Gambar Buku Teks
+function initImageGame() {
+    currentImageIndex = 0;
+    loadImageQuestion();
+}
+
+function loadImageQuestion() {
+    if (currentImageIndex >= gambarQuizData.length) {
+        showResultScreen();
+        return;
+    }
+
+    const q = gambarQuizData[currentImageIndex];
+    document.getElementById('image-progress').innerText = `Soalan ${currentImageIndex + 1}/${gambarQuizData.length}`;
+    document.getElementById('img-q-num').innerText = q.num;
+    document.getElementById('image-illustration').innerText = q.icon;
+    document.getElementById('image-clue').innerText = q.clue;
+
+    let shuffledOpts = [...q.options].sort(() => Math.random() - 0.5);
+    const optContainer = document.getElementById('image-options');
+    optContainer.innerHTML = '';
+    shuffledOpts.forEach(opt => {
+        optContainer.innerHTML += `
+            <button onclick="checkImageAnswer('${opt}', '${q.answer}')" class="bg-white border-2 border-emerald-100 hover:border-emerald-500 hover:bg-emerald-50 text-gray-800 font-bold p-4 rounded-xl shadow-sm transition duration-150 text-center capitalize cursor-pointer">
+                ${opt}
+            </button>
+        `;
+    });
+}
+
+function checkImageAnswer(selected, correct) {
+    if (selected === correct) {
+        playSound('correct');
+        totalScore += 15;
+        updateScoreDisplay();
+        currentImageIndex++;
+        loadImageQuestion();
+    } else {
+        playSound('wrong');
+        alert(`Kurang tepat! Perhatikan ilustrasi buku teks dengan teliti.`);
+    }
+}
+
+function updateScoreDisplay() {
+    document.getElementById('score-display').innerText = totalScore;
+}
+
+// Paparan Skrin Keputusan Akhir
+function showResultSection() {
+    switchScreen('screen-result');
+}
+
+function showResultScreen() {
+    switchScreen('screen-result');
+    document.getElementById('final-score').innerText = `${totalScore} Mata`;
+    try {
+        confetti({
+            particleCount: 120,
+            spread: 70,
+            origin: { y: 0.6 }
+        });
+    } catch (e) {}
+}
+
+function resetGame() {
+    totalScore = 0;
+    updateScoreDisplay();
+    switchScreen('screen-menu');
+}
